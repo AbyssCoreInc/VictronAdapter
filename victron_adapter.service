@@ -1,0 +1,12 @@
+[Unit]
+Description=NMEA 0183 Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/nmea_adapter -c /etc/nmea_adapter.conf &
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
