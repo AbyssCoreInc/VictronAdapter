@@ -29,9 +29,6 @@ VictronAdapter::VictronAdapter(std::string path)
 	}
 	pthread_mutex_lock(&this->main_lock);
 
-	// Polling stuff
-	//this->fds[0].fd = this->spfd;
-	//this->fds[0].events = POLLIN;
 }
 
 void VictronAdapter::initAdapter()
@@ -56,15 +53,139 @@ void VictronAdapter::initAdapter()
 	{
 		pthread_create(&(this->vdevs[i]->thread), NULL, &vdevs[i]->readLoop, (void *)this->vdevs[i]);
 	}
+	
+	//HTTP Headers
+	std::string header = std::string("Fiware-Service: ");
+	header.append(this->conf["fiware_service"]);
+	this->headers.push_back(header.c_str());
+	header = "Fiware-ServicePath: ";
+	header.append(this->conf["fiware_servicepath"]);
+	this->headers.push_back(header.c_str());
+	this->headers.push_back("Content-Type: application/json");
+	this->headers.push_back("Cache-Control: no-cache");
+
 }
 
-void VictronAdapter::sendData(std::string sentence)
+void VictronAdapter::sendData(ve_direct_block_t *block)
 {
-	std::string str = sentence.substr (0,sentence.length());
-	std::cout<<"sendSentence: "<<str<<std::endl;
-	//nlohmann::json jsonsent = this->interpreter->convertToJSON(str);
+	//std::string str = sentence.substr (0,sentence.length());
+	std::cout<<"sendSentence: "<<block->device_info->name<<std::endl;
+
+	this->convertToJSON(block);
 	//std::cout<<"sendSentence json: "<<jsonsent<<std::endl;
 	//this->sendMQTTPacket(jsonsent);
+}
+
+void VictronAdapter::convertToJSON(ve_direct_block_t *b)
+{
+	nlohmann::json ret;
+	nlohmann::json values;
+	ve_direct_fields_t  *fields_p;
+	if (b->device_info->type == ve_direct_device_type_mppt)
+	{
+		std::cout<<"parse MPPT device"<<std::endl;
+		std::ifstream file(this->conf["model_path"].get<std::string>().append("/mppt.json"));
+		ret = json::parse(file);
+
+		for (fields_p=b->fields; fields_p!=NULL; fields_p=fields_p->next) {
+			//printf("\t\t%s:\t", fields_p->name);
+			if (strcmp(fields_p->name,"SER#")==0)
+			{
+				//printf("%s\n", (char *)fields_p->value);
+				ret["devices"][0]["device_id"] = (char *)fields_p->value;
+			}
+			else if (strcmp(fields_p->name,"PID")==0)
+			{
+				//printf("0x%0X\n", *(int *)fields_p->value);
+				for(auto &array : ret["devices"][0]["static_attributes"])
+				{
+					std::string field = array["name"]; 
+					//std::cout<<"field:"<<field<<std::endl;
+					if (strcmp(field.c_str(),"DevicePID")==0) {
+						char temp[8];
+						sprintf(temp,"0x%0X", *(int *)fields_p->value);
+						//std::cout<<"temp:"<<temp<<std::endl;
+						array["value"] = std::string(temp);
+					}
+					if (strcmp(field.c_str(),"DeviceName")==0) {
+						array["value"] = std::string(b->device_info->name);
+					}
+				}
+			}
+		}
+		//std::cout<<"hep"<<std::endl;
+		int exist = 0;
+		std::string devid = ret["devices"][0]["device_id"];
+		std::string tempdev;
+		for (int i = 0; i < this->mpptDevices.size(); i++)
+		{
+			tempdev = this->mpptDevices.at(i)["devices"][0]["device_id"];
+			if (tempdev.compare(devid)==0)
+				exist = 1;
+		}
+		if (exist)
+		{
+			for (fields_p=b->fields; fields_p!=NULL; fields_p=fields_p->next) {
+				// make values json
+				if (strcmp(fields_p->name,"V")==0)
+				{
+					//printf("%i\n", *(int *)fields_p->value);
+					values["V"]= *(int *)fields_p->value;
+				}
+				else if (strcmp(fields_p->name,"I")==0)
+				{
+					//printf("%i\n", *(int *)fields_p->value);
+					values["I"]= *(int *)fields_p->value;
+				}
+				else if (strcmp(fields_p->name,"VPV")==0)
+				{
+					//printf("%i\n", *(int *)fields_p->value);
+					values["VPV"]= *(int *)fields_p->value;
+				}
+				else if (strcmp(fields_p->name,"PPV")==0)
+				{
+					//printf("%i\n", *(int *)fields_p->value);
+					values["PPV"]= *(int *)fields_p->value;
+				}
+				else if (strcmp(fields_p->name,"IL")==0)
+				{
+					//printf("%i\n", *(int *)fields_p->value);
+					values["IL"]= *(int *)fields_p->value;
+				}
+			}
+			// update data
+			this->updateData(ret["devices"][0]["device_id"], values);
+		}
+		else
+		{
+			this->mpptDevices.push_back(ret);
+			this->createDevice(ret);
+		}
+		std::cout<<"parsed MPPT device fields"<<std::endl;
+
+	}
+	//std::cout<<ret<<std::endl;
+}
+
+void VictronAdapter::createDevice(nlohmann::json dev)
+{
+	std::cout<<"createDevice:"<<dev<<std::endl;
+	// curlpp stuff
+	curlpp::Cleanup myCleanup;
+	curlpp::Easy request;
+	std::string body = dev.dump();
+	std::string uri = this->conf["agent_url"];
+	request.setOpt(new curlpp::options::Url(uri));
+	request.setOpt(new curlpp::options::Verbose(true));
+	request.setOpt(new curlpp::options::HttpHeader(headers));
+	request.setOpt(new curlpp::options::PostFields(body));
+	request.setOpt(new curlpp::options::PostFieldSize(body.length()));
+	request.perform();
+
+}
+void VictronAdapter::updateData(std::string id, nlohmann::json dev)
+{
+	std::cout<<"updateData id:"<<id<<"="<<dev<<std::endl;
 }
 
 unsigned int VictronAdapter::strToInt(const char *str, int base)
@@ -79,42 +200,11 @@ unsigned int VictronAdapter::strToInt(const char *str, int base)
     }
     return result;
 }
-/*
-std::string VictronAdapter::readSentence()
-{
-	memset(&this->read_buf, '\0', sizeof(this->read_buf));
-	int pollrc = poll( this->fds, 1, 5000);
-	if (pollrc < 0)
-	{
-		std::cout<<"readSentence pollrc error: "<<pollrc<<std::endl;
-    		//perror("poll");
-	}
-	else if( pollrc > 0)
-	{
-    		if( this->fds[0].revents & POLLIN )
-		{
-			ssize_t rc = read(this->spfd, &this->read_buf, sizeof(this->read_buf) );
-			if (rc > 0)
-			{
-				// You've got rc characters. do something with buff 
-				std::string ret(this->read_buf,sizeof(this->read_buf));
-				ret.erase(std::remove_if(ret.begin(), ret.end(), ::isspace), ret.end());
-				return ret;
-			}
-		}
-	}
-	else
-	{
-		std::cout<<"readSentence timeout "<<std::endl;
-	}
-	return NULL;
-}
-*/
+
 std::vector<libusbp::device> VictronAdapter::findUSBDevices(uint16_t vendor_id, uint16_t product_id)
 {
 	std::vector<libusbp::device> devices;
 	std::vector<libusbp::device> fullist = libusbp::list_connected_devices();
-
 	for(size_t i = 0; i < fullist.size(); i++)
  	{
 		libusbp::device candidate = fullist[i];
@@ -123,36 +213,9 @@ std::vector<libusbp::device> VictronAdapter::findUSBDevices(uint16_t vendor_id, 
 			devices.push_back(fullist[i]);
 		}
 	}
-	//delete(fullist);
 	return devices;
 }
-/*
-int VictronAdapter::openUSBSerialPort()
-{
-	struct termios options;
 
-	libusbp::serial_port port(device);
-	std::string port_name = port.get_name();
-	std::cout << port_name << std::endl;
-
-	this->spfd = open(port_name.c_str(), O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK | O_ASYNC);
-	if (this->spfd == -1)
-	{
-		// Could not open the port. 
-		perror("open_port: Unable to open /dev/ttyf1 - ");
-		return 2;
-	}
-	fcntl(this->spfd, F_SETFL, 0);
-
-	tcgetattr(this->spfd, &options);
-	cfsetispeed(&options, B4800); // 4800 is the baudrate of NMEA0193
-	options.c_cflag |= (CLOCAL | CREAD);
-	options.c_cc[VMIN] = 0;
-	options.c_cc[VTIME] = 5;
-	tcsetattr(this->spfd, TCSANOW, &options);
-	return 0;
-}
-*/
 int VictronAdapter::readConfigFile(std::string path)
 {
 
@@ -196,7 +259,7 @@ VictronAdapter* adapter;
 void signalHandler( int signum ) {
 	std::cout << "Interrupt signal (" << signum << ") received.\n";
 	delete adapter;
-	exit(signum);  
+	exit(signum);
 }
 
 int main(int argc, char const *argv[])

@@ -29,6 +29,18 @@ sudo make install
 sudo apt-get install libmosquitto-dev libmosquittopp-dev libssl-dev
 ```
 Obviously you need to have MQTT broker such as Mosquitto installed on the machine where messages are published
+
+libcurlpp is needed for JSON communication with IoT Agent
+```
+git clone https://github.com/jpbarrette/curlpp.git
+cd curlpp 
+mkdir build
+cd build
+cmake ..
+make
+sudo make install
+```
+
 ## Installation
 Installation follows basic route except is much simpler
 ```

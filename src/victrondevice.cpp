@@ -30,7 +30,8 @@ void *VictronDevice::readLoop(void *context)
 				ve_direct_free_block(block);
 				continue;
 			}
-			ve_direct_print_block(block);
+			//ve_direct_print_block(block);
+			((VictronDevice*)context)->adapter->sendData(block);
 		}
 	}
 	return NULL;

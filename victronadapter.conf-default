@@ -1,10 +1,13 @@
 {
 	"vendor_id":"0403",
 	"product_id":"6015",
+	"model_path":"/var/victronadapter",
 	"mqtt_host":"127.0.0.1",
 	"mqtt_port":"1883",
 	"mqtt_user":"",
 	"mqtt_pass":"",
-	"fiware_service":"nmea0183",
+	"agent_url":"127.0.0.1:4041",
+	"fiware_service":"vedirect",
+	"fiware_servicepath":"/suvanto",
 	"api_key":"1234"
 }
