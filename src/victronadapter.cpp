@@ -93,6 +93,12 @@ void VictronAdapter::convertToJSON(ve_direct_block_t *b)
 			{
 				//printf("%s\n", (char *)fields_p->value);
 				ret["devices"][0]["device_id"] = (char *)fields_p->value;
+				std::string temp = ret["devices"][0]["entity_name"];
+				std::cout<<"entity_name:"<<temp<<std::endl;
+				temp = temp.substr(0,temp.length()-8);
+				temp.append((char *)fields_p->value);
+				std::cout<<"entity_name:"<<temp<<std::endl;
+				ret["devices"][0]["entity_name"] = temp.c_str();
 			}
 			else if (strcmp(fields_p->name,"PID")==0)
 			{
@@ -130,27 +136,27 @@ void VictronAdapter::convertToJSON(ve_direct_block_t *b)
 				if (strcmp(fields_p->name,"V")==0)
 				{
 					//printf("%i\n", *(int *)fields_p->value);
-					values["V"]= *(int *)fields_p->value;
+					values["V"]= (float)(*(int *)fields_p->value)/1000.0;
 				}
 				else if (strcmp(fields_p->name,"I")==0)
 				{
 					//printf("%i\n", *(int *)fields_p->value);
-					values["I"]= *(int *)fields_p->value;
+					values["I"]= (float)(*(int *)fields_p->value)/1000.0;
 				}
 				else if (strcmp(fields_p->name,"VPV")==0)
 				{
 					//printf("%i\n", *(int *)fields_p->value);
-					values["VPV"]= *(int *)fields_p->value;
+					values["VPV"]= (float)(*(int *)fields_p->value)/1000.0;
 				}
 				else if (strcmp(fields_p->name,"PPV")==0)
 				{
 					//printf("%i\n", *(int *)fields_p->value);
-					values["PPV"]= *(int *)fields_p->value;
+					values["PPV"]= (float)(*(int *)fields_p->value)/1.0;
 				}
 				else if (strcmp(fields_p->name,"IL")==0)
 				{
 					//printf("%i\n", *(int *)fields_p->value);
-					values["IL"]= *(int *)fields_p->value;
+					values["IL"]= (float)(*(int *)fields_p->value)/1000.0;
 				}
 			}
 			// update data
@@ -174,18 +180,38 @@ void VictronAdapter::createDevice(nlohmann::json dev)
 	curlpp::Cleanup myCleanup;
 	curlpp::Easy request;
 	std::string body = dev.dump();
-	std::string uri = this->conf["agent_url"];
+	std::cout<<"create device:"<<body<<std::endl;
+	std::string uri = this->conf["agent_url_dev"];
 	request.setOpt(new curlpp::options::Url(uri));
 	request.setOpt(new curlpp::options::Verbose(true));
 	request.setOpt(new curlpp::options::HttpHeader(headers));
 	request.setOpt(new curlpp::options::PostFields(body));
 	request.setOpt(new curlpp::options::PostFieldSize(body.length()));
+	//std::cout<<std::endl<<"post request:"<<request<<std::endl<<std::endl;
 	request.perform();
 
 }
 void VictronAdapter::updateData(std::string id, nlohmann::json dev)
 {
 	std::cout<<"updateData id:"<<id<<"="<<dev<<std::endl;
+
+	curlpp::Cleanup myCleanup;
+        curlpp::Easy request;
+        std::string body = dev.dump();
+        std::cout<<"create device:"<<body<<std::endl;
+        std::string uri = this->conf["agent_url_data"];
+	uri.append("?k=");
+	uri.append(this->conf["fiware_apikey"]);
+	uri.append("&i=");
+	uri.append(id);
+
+        request.setOpt(new curlpp::options::Url(uri));
+        request.setOpt(new curlpp::options::Verbose(true));
+        request.setOpt(new curlpp::options::HttpHeader(headers));
+        request.setOpt(new curlpp::options::PostFields(body));
+        request.setOpt(new curlpp::options::PostFieldSize(body.length()));
+        //std::cout<<std::endl<<"post request:"<<request<<std::endl<<std::endl;
+        request.perform();
 }
 
 unsigned int VictronAdapter::strToInt(const char *str, int base)

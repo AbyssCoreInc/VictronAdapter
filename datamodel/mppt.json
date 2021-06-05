@@ -6,14 +6,13 @@
      "entity_type": "MPPT",
      "timezone":    "Europe/Helsinki",
      "attributes": [
-       { "object_id": "VPV", "name": "SolarVoltage", "type": "Integer" },
-       { "object_id": "VPP", "name": "SolarPower", "type": "Integer" },
-       { "object_id": "V", "name": "BatteryVoltage", "type": "Integer" },
-       { "object_id": "I", "name": "BatteryCurrent", "type": "Integer" },
-       { "object_id": "IL", "name": "LoadCurrent", "type": "Integer" }
+       { "object_id": "VPV", "name": "SolarVoltage", "type": "float" },
+       { "object_id": "VPP", "name": "SolarPower", "type": "float" },
+       { "object_id": "V", "name": "BatteryVoltage", "type": "float" },
+       { "object_id": "I", "name": "BatteryCurrent", "type": "float" },
+       { "object_id": "IL", "name": "LoadCurrent", "type": "float" }
      ],
      "static_attributes": [
-       { "name":"refYacht", "type": "Relationship", "value": "urn:ngsi-ld:Yacht:<MMSI>"},
        { "name":"DeviceName", "type": "Text", "value": "<NAME>"},
        { "name":"DevicePID", "type": "Text", "value": "<PID>"}
      ]

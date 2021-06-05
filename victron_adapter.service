@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/nmea_adapter -c /etc/nmea_adapter.conf &
+ExecStart=/usr/bin/victron_adapter -c /etc/victronadapter.conf &
 Restart=always
 
 [Install]
